@@ -74,6 +74,12 @@ class Board : JPanel(true) {
     }
 
     private fun draw(g: Graphics2D) {
+        g.drawString("FPS ${fpsValue.get()}", 10, 10)
+        val i = Physics.update(bodies, 0.1)
+        g.drawString("X ${i.momentumX}", 10, 20)
+        g.drawString("Y ${i.momentumY}", 10, 30)
+        g.drawString("E ${i.energy}", 10, 40)
+
         bodies.forEach {
             when (it) {
                 is Circle -> draw(it, g)
@@ -81,13 +87,6 @@ class Board : JPanel(true) {
                 is Wall -> draw(it, g)
             }
         }
-
-        g.drawString("FPS ${fpsValue.get()}", 10, 10)
-        val i = Physics.update(bodies, 0.1)
-        g.drawString("X ${i.momentumX}", 10, 20)
-        g.drawString("Y ${i.momentumY}", 10, 30)
-        g.drawString("E ${i.energy}", 10, 40)
-
     }
 
     private fun draw(circle: Circle, g: Graphics2D) {
@@ -96,25 +95,20 @@ class Board : JPanel(true) {
         val d = circle.radius.toInt() * 2
         g.color = bodyColor
         g.drawOval(x, y, d, d)
+        drawLine(g, circle.center, circle.center + circle.turn * circle.radius)
     }
 
     private fun draw(rect: Rect, g: Graphics2D) {
         g.color = bodyColor
 
-        val halfWidth = rect.turn * (rect.size.x / 2)
-        val halfHeight = rect.turn.normal() * (rect.size.y / 2)
-        val p1 = (rect.center + halfHeight + halfWidth).asCartesian()
-        val p2 = (rect.center - halfHeight + halfWidth).asCartesian()
-        val p3 = (rect.center - halfHeight - halfWidth).asCartesian()
-        val p4 = (rect.center + halfHeight - halfWidth).asCartesian()
-        drawLine(g, p1, p2)
-        drawLine(g, p2, p3)
-        drawLine(g, p3, p4)
-        drawLine(g, p4, p1)
+        drawLine(g, rect.p1, rect.p2)
+        drawLine(g, rect.p2, rect.p3)
+        drawLine(g, rect.p3, rect.p4)
+        drawLine(g, rect.p4, rect.p1)
     }
 
-    private fun drawLine(g: Graphics2D, p1: Cartesian, p2: Cartesian) {
-        g.drawLine(p1.x.toInt(), p1.y.toInt(), p2.x.toInt(), p2.y.toInt())
+    private fun drawLine(g: Graphics2D, from: Cartesian, to: Cartesian) {
+        g.drawLine(from.x.toInt(), from.y.toInt(), to.x.toInt(), to.y.toInt())
     }
 
     private fun draw(wall: Wall, g: Graphics2D) {
@@ -150,6 +144,13 @@ class Board : JPanel(true) {
                 Cartesian(maxSize / 2 + randomSize() / 2, maxSize / 2 + randomSize() / 2), randomSpeed(),
                 Polar(1.0, random.nextDouble() * PI), 0.0))
     }
+
+    fun billiard() {
+        bodies.clear()
+        bodies.addAll(listOf(topWall, leftWall, rightWall, bottomWall))
+        bodies.add(Circle(50.0, Cartesian(300.0, 300.0), Polar.ZERO, Polar.ZERO, 0.0))
+        bodies.add(Circle(50.0, Cartesian(500.0, 325.0), Cartesian(-3.0, 0.0), Polar.ZERO, 0.0))
+    }
 }
 
 class BoardKeysListener(private val b: Board) : KeyListener {
@@ -158,6 +159,7 @@ class BoardKeysListener(private val b: Board) : KeyListener {
             'o' -> b.addCircle()
             '-' -> b.removeBody()
             'r' -> b.addRect()
+            'b' -> b.billiard()
         }
     }
 

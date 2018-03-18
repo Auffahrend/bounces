@@ -4,16 +4,18 @@ import org.apache.commons.math3.util.FastMath
 
 object Physics {
 
-    fun update(bodies: List<Body>, timeStep: Double): Invariants {
-        collide(bodies)
+    private const val e = 1.0
 
-        bodies.filter { it is Movable }.forEach { update(it as Movable, timeStep) }
+    fun update(bodies: List<Body>, timeStep: Double): Invariants {
+        bodies.filter { it is Movable }.forEach { (it as Movable).move(timeStep) }
+
+        collide(bodies)
 
         return invariants(bodies)
     }
 
     private fun invariants(bodies: List<Body>): Invariants {
-        val movable = bodies.filter { it is Movable }
+        val movable : List<Movable> = bodies.filter { it is Movable }.map { it as Movable }
         if (movable.isEmpty()) return Invariants(.0, .0, .0)
         return movable
                 .map {
@@ -82,9 +84,10 @@ object Physics {
     }
 
     private fun checkAndCollide(first: Circle, second: Circle) {
-        val distance = (first.center - second.center).module()
-        if (distance <= first.radius + second.radius) {
-
+        var relative = (second.center - first.center)
+        val relSpeed = second.speed - first.speed
+        val penetration = first.radius + second.radius - relative.module()
+        if (penetration > 0.0 && relative.dot(relSpeed) < 0) {
             val newFirstSpeed = (first.speed * (first.mass - second.mass) + second.speed * (2 * second.mass)) / (first.mass + second.mass)
             second.speed = (second.speed * (second.mass - first.mass) + first.speed * (2 * first.mass)) / (first.mass + second.mass)
             first.speed = newFirstSpeed
@@ -99,8 +102,7 @@ object Physics {
 
     }
 
-    private fun findIntersection(first: StraightLine, second: StraightLine):
-            List<Intersection<StraightLine, StraightLine>> {
+    private fun findIntersection(first: StraightLine, second: StraightLine): List<Intersection<StraightLine, StraightLine>> {
         return if (isSecondLineCrossesFirst(first, second) && isSecondLineCrossesFirst(second, first)) {
             listOf(Intersection(first, second, getStraightsIntersectionPoint(first, second)))
         } else {
@@ -145,10 +147,6 @@ object Physics {
         }
     }
 
-    private fun update(body: Movable, timeStep: Double) {
-        body.center += body.speed * timeStep
-        body.turn.rotate(body.angularSpeed * timeStep)
-    }
 }
 
 data class Intersection<out L1 : Line, out L2 : Line>(val line1: L1, val line2: L2, val point: Vector)
