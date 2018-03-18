@@ -88,9 +88,11 @@ object Physics {
         val relSpeed = second.speed - first.speed
         val penetration = first.radius + second.radius - relative.module()
         if (penetration > 0.0 && relative.dot(relSpeed) < 0) {
-            val newFirstSpeed = (first.speed * (first.mass - second.mass) + second.speed * (2 * second.mass)) / (first.mass + second.mass)
-            second.speed = (second.speed * (second.mass - first.mass) + first.speed * (2 * first.mass)) / (first.mass + second.mass)
-            first.speed = newFirstSpeed
+            relative /= relative.module()
+            val J = - relSpeed.dot(relative) * (1 + e) / (relative.dot(relative) * (1/first.mass + 1/second.mass))
+
+            first.speed += relative * J / first.mass
+            second.speed -= relative * J / second.mass
         }
     }
 
