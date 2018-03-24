@@ -1,6 +1,7 @@
 package bounces
 
 import org.apache.commons.math3.util.FastMath
+import org.apache.commons.math3.util.FastMath.*
 
 object Physics {
 
@@ -63,37 +64,45 @@ object Physics {
 
     private fun checkAndCollide(wall: Wall, circle: Circle) {
         val wallLine = StraightLine(wall.from, wall.from + wall.size)
-        val xDiameter = StraightLine(circle.center.asCartesian() + Cartesian(-circle.radius, .0),
-                circle.center.asCartesian() + Cartesian(circle.radius, .0))
-        val yDiameter = StraightLine(circle.center.asCartesian() + Cartesian(.0, -circle.radius),
-                circle.center.asCartesian() + Cartesian(.0, circle.radius))
-        if (!findIntersection(wallLine, xDiameter).isEmpty()) {
+        if (!findIntersection(wallLine, circle).isEmpty() && circle.speed.dot(wall.inside) < 0) {
             val currentSpeed = circle.speed.asCartesian()
-            circle.speed = Cartesian(-currentSpeed.x, currentSpeed.y)
-        }
-        if (!findIntersection(wallLine, yDiameter).isEmpty()) {
-            val currentSpeed = circle.speed.asCartesian()
-            circle.speed = Cartesian(currentSpeed.x, -currentSpeed.y)
+            if (wallLine.isVertical) {
+                circle.speed = Cartesian(-currentSpeed.x, currentSpeed.y)
+            } else {
+                circle.speed = Cartesian(currentSpeed.x, -currentSpeed.y)
+            }
         }
     }
 
     private fun checkAndCollide(wall: Wall, rect: Rect) {
         val wallLine = StraightLine(wall.from, wall.from + wall.size)
-        if (wallLine.isVertical) {
+        if (!rect.lines().flatMap { findIntersection(wallLine, it) }.isEmpty()
+                && rect.speed.dot(wall.inside) < 0) {
+            val currentSpeed = rect.speed.asCartesian()
+            if (wallLine.isVertical) {
+                rect.speed = Cartesian(-currentSpeed.x, currentSpeed.y)
+            } else {
+                rect.speed = Cartesian(currentSpeed.x, -currentSpeed.y)
+            }
         }
     }
 
     private fun checkAndCollide(first: Circle, second: Circle) {
-        var relDistance = (second.center - first.center)
+        val relDistance = (second.center - first.center)
         val relSpeed = second.speed - first.speed
         val penetration = first.radius + second.radius - relDistance.module()
         if (penetration > 0.0 && relDistance.dot(relSpeed) < 0) {
-            relDistance /= relDistance.module()
-            val J = - relSpeed.dot(relDistance) * (1 + e) / (relDistance.dot(relDistance) * (1/first.mass + 1/second.mass))
-
-            first.speed -= relDistance * J / first.mass
-            second.speed += relDistance * J / second.mass
+            applyCollisionResponse(relSpeed, first, second)
         }
+    }
+
+    private fun applyCollisionResponse(relSpeed: Vector, first: Movable, second: Movable) {
+        var relDistance = (second.center - first.center)
+        relDistance /= relDistance.module()
+        val J = -relSpeed.dot(relDistance) * (1 + e) / (relDistance.dot(relDistance) * (1 / first.mass + 1 / second.mass))
+
+        first.speed -= relDistance * J / first.mass
+        second.speed += relDistance * J / second.mass
     }
 
     private fun checkAndCollide(circle: Circle, rect: Rect) {
@@ -104,9 +113,10 @@ object Physics {
 
     }
 
-    private fun findIntersection(first: StraightLine, second: StraightLine): List<Intersection<StraightLine, StraightLine>> {
+    private fun findIntersection(first: StraightLine, second: StraightLine): List<Vector> {
         return if (isSecondLineCrossesFirst(first, second) && isSecondLineCrossesFirst(second, first)) {
-            listOf(Intersection(first, second, getStraightsIntersectionPoint(first, second)))
+            listOf(getStraightsIntersectionPoint(first, second))
+                    .filter { first.contains(it) && second.contains(it) }
         } else {
             emptyList()
         }
@@ -149,9 +159,56 @@ object Physics {
         }
     }
 
+    private fun findIntersection(first: StraightLine, second: Circle): List<Intersection> {
+        // moving coordinates center to circle center to simplify
+        val movedLine = StraightLine(first.from - second.center, first.to - second.center)
+        var points = emptyList<Vector>()
+        if (first.isVertical) {
+            if (movedLine.from.x in -abs(second.radius)..abs(second.radius)) {
+                val y1 = second.innerY1Function(movedLine.from.x)
+                val y2 = second.innerY2Function(movedLine.from.x)
+                points = listOf(
+                        Cartesian(movedLine.from.x, y1),
+                        Cartesian(movedLine.from.x, y2))
+                if (abs(y1-y2) < Vector.PRECISION) points = points.take(1)
+
+            }
+        } else {
+            // (kx + b)**2 + x**2 = r**2
+            // (k**2+1) x**2 + 2kb x + b**2 - r**2 = 0
+            val k = tan(movedLine.direction)
+            val b = movedLine.yFunction(0.0)
+            points = squareRoots(k.sqr() + 1, 2 * k * b, b.sqr() - second.radius.sqr())
+                    .map { x -> Cartesian(x, movedLine.yFunction(x)) }
+        }
+
+        return points
+                .map { it + second.center }
+                .filter { first.contains(it) && second.contains(it) }
+                .sortedWith ( compareBy({ it.asCartesian().x }, { it.asCartesian().y }) )
+                .map { Intersection(it, ) }
+    }
+
+    private fun squareRoots(a: Double, b: Double, c: Double): List<Double> {
+        val D = b.sqr() - 4 * a * c
+        if (D >= 0) {
+            val x1 = (sqrt(D) - b) / (2 * a)
+            val x2 = (-sqrt(D) - b) / (2 * a)
+
+            if (D < Vector.PRECISION) {
+                return listOf(x1)
+            } else {
+                return listOf(x1, x2)
+            }
+        }
+        return emptyList()
+    }
+
 }
 
-data class Intersection<out L1 : Line, out L2 : Line>(val line1: L1, val line2: L2, val point: Vector)
+private fun Double.sqr(): Double = this * this
+
+data class Intersection(val point: Vector, val norm: Vector)
 
 data class Invariants(val momentumX: Double, val momentumY: Double, val energy: Double) {
     operator fun plus(other: Invariants): Invariants {

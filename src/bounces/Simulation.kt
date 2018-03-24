@@ -48,10 +48,10 @@ class Board : JPanel(true) {
     private val fpsCounter = AtomicInteger()
     private var fpsValue = AtomicInteger()
     private val bodies = mutableListOf<Body>()
-    private val topWall = Wall(Cartesian(.0, .0), Cartesian(.0, .0))
-    private val leftWall = Wall(Cartesian(.0, .0), Cartesian(.0, .0))
-    private val rightWall = Wall(Cartesian(.0, .0), Cartesian(.0, .0))
-    private val bottomWall = Wall(Cartesian(.0, .0), Cartesian(.0, .0))
+    private val topWall = Wall(Cartesian(.0, .0), Cartesian(.0, .0), Cartesian(0.0, 1.0))
+    private val leftWall = Wall(Cartesian(.0, .0), Cartesian(.0, .0), Cartesian(1.0, 0.0))
+    private val rightWall = Wall(Cartesian(.0, .0), Cartesian(.0, .0), Cartesian(-1.0, 0.0))
+    private val bottomWall = Wall(Cartesian(.0, .0), Cartesian(.0, .0), Cartesian(0.0, -1.0))
     private val random = Random()
     private val wallColor = Color.red
     private val bodyColor = Color.black
