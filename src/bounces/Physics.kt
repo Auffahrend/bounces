@@ -84,15 +84,15 @@ object Physics {
     }
 
     private fun checkAndCollide(first: Circle, second: Circle) {
-        var relative = (second.center - first.center)
+        var relDistance = (second.center - first.center)
         val relSpeed = second.speed - first.speed
-        val penetration = first.radius + second.radius - relative.module()
-        if (penetration > 0.0 && relative.dot(relSpeed) < 0) {
-            relative /= relative.module()
-            val J = - relSpeed.dot(relative) * (1 + e) / (relative.dot(relative) * (1/first.mass + 1/second.mass))
+        val penetration = first.radius + second.radius - relDistance.module()
+        if (penetration > 0.0 && relDistance.dot(relSpeed) < 0) {
+            relDistance /= relDistance.module()
+            val J = - relSpeed.dot(relDistance) * (1 + e) / (relDistance.dot(relDistance) * (1/first.mass + 1/second.mass))
 
-            first.speed += relative * J / first.mass
-            second.speed -= relative * J / second.mass
+            first.speed -= relDistance * J / first.mass
+            second.speed += relDistance * J / second.mass
         }
     }
 
