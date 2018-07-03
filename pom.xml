@@ -13,7 +13,7 @@
         <main.class>bounces.Simulation</main.class>
 
         <mvn.compile.source>1.8</mvn.compile.source>
-        <kotlin.version>1.2.30</kotlin.version>
+        <kotlin.version>1.2.50</kotlin.version>
 
     </properties>
 

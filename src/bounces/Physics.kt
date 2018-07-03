@@ -64,7 +64,8 @@ object Physics {
 
     private fun checkAndCollide(wall: Wall, circle: Circle) {
         val wallLine = StraightLine(wall.from, wall.from + wall.size)
-        if (!findIntersection(wallLine, circle).isEmpty() && circle.speed.dot(wall.inside) < 0) {
+        val intersections = findIntersections(wallLine, circle)
+        if (!intersections.isEmpty() && circle.speed.dot(wall.inside) < 0) {
             val currentSpeed = circle.speed.asCartesian()
             if (wallLine.isVertical) {
                 circle.speed = Cartesian(-currentSpeed.x, currentSpeed.y)
@@ -76,7 +77,7 @@ object Physics {
 
     private fun checkAndCollide(wall: Wall, rect: Rect) {
         val wallLine = StraightLine(wall.from, wall.from + wall.size)
-        if (!rect.lines().flatMap { findIntersection(wallLine, it) }.isEmpty()
+        if (!rect.lines().flatMap { findIntersections(wallLine, it) }.isEmpty()
                 && rect.speed.dot(wall.inside) < 0) {
             val currentSpeed = rect.speed.asCartesian()
             if (wallLine.isVertical) {
@@ -113,7 +114,7 @@ object Physics {
 
     }
 
-    private fun findIntersection(first: StraightLine, second: StraightLine): List<Vector> {
+    private fun findIntersections(first: StraightLine, second: StraightLine): List<Vector> {
         return if (isSecondLineCrossesFirst(first, second) && isSecondLineCrossesFirst(second, first)) {
             listOf(getStraightsIntersectionPoint(first, second))
                     .filter { first.contains(it) && second.contains(it) }
@@ -159,7 +160,7 @@ object Physics {
         }
     }
 
-    private fun findIntersection(first: StraightLine, second: Circle): List<Intersection> {
+    private fun findIntersections(first: StraightLine, second: Circle): List<Intersection> {
         // moving coordinates center to circle center to simplify
         val movedLine = StraightLine(first.from - second.center, first.to - second.center)
         var points = emptyList<Vector>()
@@ -190,15 +191,15 @@ object Physics {
     }
 
     private fun squareRoots(a: Double, b: Double, c: Double): List<Double> {
-        val D = b.sqr() - 4 * a * c
-        if (D >= 0) {
-            val x1 = (sqrt(D) - b) / (2 * a)
-            val x2 = (-sqrt(D) - b) / (2 * a)
+        val d = b.sqr() - 4 * a * c
+        if (d >= 0) {
+            val x1 = (sqrt(d) - b) / (2 * a)
+            val x2 = (-sqrt(d) - b) / (2 * a)
 
-            if (D < Vector.PRECISION) {
-                return listOf(x1)
+            return if (d < Vector.PRECISION) {
+                listOf(x1)
             } else {
-                return listOf(x1, x2)
+                listOf(x1, x2)
             }
         }
         return emptyList()
@@ -208,7 +209,7 @@ object Physics {
 
 private fun Double.sqr(): Double = this * this
 
-data class Intersection(val point: Vector, val norm: Vector)
+data class Intersection(val point: Vector, val rebounce: Vector)
 
 data class Invariants(val momentumX: Double, val momentumY: Double, val energy: Double) {
     operator fun plus(other: Invariants): Invariants {
