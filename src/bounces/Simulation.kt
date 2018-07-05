@@ -1,6 +1,6 @@
 package bounces
 
-import org.apache.commons.math3.util.FastMath.PI
+import org.apache.commons.math3.util.FastMath.*
 import java.awt.*
 import java.awt.event.KeyEvent
 import java.awt.event.KeyListener
@@ -76,9 +76,9 @@ class Board : JPanel(true) {
     private fun draw(g: Graphics2D) {
         g.drawString("FPS ${fpsValue.get()}", 10, 10)
         val i = Physics.update(bodies, 0.1)
-        g.drawString("X ${i.momentumX}", 10, 20)
-        g.drawString("Y ${i.momentumY}", 10, 30)
-        g.drawString("E ${i.energy}", 10, 40)
+        g.drawString("X ${reducePrecision(i.momentumX)}", 10, 20)
+        g.drawString("Y ${reducePrecision(i.momentumY)}", 10, 30)
+        g.drawString("E ${reducePrecision(i.energy)}", 10, 40)
 
         bodies.forEach {
             when (it) {
@@ -88,6 +88,8 @@ class Board : JPanel(true) {
             }
         }
     }
+
+    private fun reducePrecision(value: Double) = if (abs(value) < Vector.PRECISION) 0.0 else value
 
     private fun draw(circle: Circle, g: Graphics2D) {
         val x: Int = (circle.center.asCartesian().x - circle.radius).toInt()
@@ -127,7 +129,7 @@ class Board : JPanel(true) {
 
     fun addCircle() {
         bodies.add(Circle(5.0 + randomSize(), Cartesian(width / 2.0, height / 2.0),
-                randomSpeed(), Polar(1.0, 0.0), 0.0))
+                randomSpeed(), Polar(1.0, 0.0), 1.0))
     }
 
     private fun randomSize() = random.nextDouble() * maxSize
@@ -146,10 +148,24 @@ class Board : JPanel(true) {
     }
 
     fun billiard() {
+
         bodies.clear()
         bodies.addAll(listOf(topWall, leftWall, rightWall, bottomWall))
-        bodies.add(Circle(50.0, Cartesian(300.0, 300.0), Polar.ZERO, Polar.ZERO, 0.0))
-        bodies.add(Circle(50.0, Cartesian(500.0, 325.0), Cartesian(-3.0, 0.0), Polar.ZERO, 0.0))
+        val radius = 40.0
+        var center = (topWall.from + bottomWall.from) / 2.0 + Cartesian(600.0, 0.0)
+        bodies.add(Circle(radius, center + Cartesian(300.0, 0.0), Polar(30.0, PI), Polar.ZERO, 0.0))
+
+        var rowStart = center
+        val rowShift = Cartesian(-2*radius * cos(PI/6) -1, -2*radius * sin(PI/6)-1)
+        val nextShift = Cartesian(0.0, 2 * radius + 2)
+        for (row in 0..4) {
+            center = rowStart
+            for (ball in 0..row) {
+                bodies.add(Circle(radius, center, Polar.ZERO, Polar.ZERO, 0.0))
+                center += nextShift
+            }
+            rowStart += rowShift
+        }
     }
 }
 

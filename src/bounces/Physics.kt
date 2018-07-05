@@ -187,7 +187,13 @@ object Physics {
                 .map { it + second.center }
                 .filter { first.contains(it) && second.contains(it) }
                 .sortedWith ( compareBy({ it.asCartesian().x }, { it.asCartesian().y }) )
-                .map { Intersection(it, ) }
+                .map { Intersection(it, orthogonalToLineInDirectionTo(first, second, it)) }
+    }
+
+    private fun orthogonalToLineInDirectionTo(line: StraightLine, directTo: Circle, point: Vector): Vector {
+        val orthogonal = Polar(1.0, line.direction + PI / 2)
+        val direction = directTo.center - point
+        return if (orthogonal.dot(direction) > Vector.PRECISION) orthogonal else -orthogonal
     }
 
     private fun squareRoots(a: Double, b: Double, c: Double): List<Double> {
@@ -209,10 +215,16 @@ object Physics {
 
 private fun Double.sqr(): Double = this * this
 
-data class Intersection(val point: Vector, val rebounce: Vector)
+data class Intersection(val point: Vector,
+                        /**
+                         * a vector from first to second body, along which a rebound force must be applied
+                         */
+                        val rebounde: Vector)
 
 data class Invariants(val momentumX: Double, val momentumY: Double, val energy: Double) {
     operator fun plus(other: Invariants): Invariants {
         return Invariants(momentumX + other.momentumX, momentumY + other.momentumY, energy + other.energy)
     }
+
+
 }
