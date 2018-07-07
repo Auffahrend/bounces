@@ -16,13 +16,14 @@ object Physics {
     }
 
     private fun invariants(bodies: List<Body>): Invariants {
-        val movable : List<Movable> = bodies.filter { it is Movable }.map { it as Movable }
-        if (movable.isEmpty()) return Invariants(.0, .0, .0)
-        return movable
+        val movables: List<Movable> = bodies.filter { it is Movable }.map { it as Movable }
+        if (movables.isEmpty()) return Invariants(.0, .0, .0, .0)
+        return movables
                 .map {
                     Invariants(it.speed.asCartesian().x * it.mass,
                             it.speed.asCartesian().y * it.mass,
-                            it.speed.moduleSqr() * it.mass / 2)
+                            it.speed.moduleSqr() * it.mass / 2 + it.angularSpeed.sqr() * it.inertia / 2,
+                            it.angularSpeed * it.inertia)
                 }
                 .reduce { i1, i2 -> i1 + i2 }
     }
@@ -64,46 +65,56 @@ object Physics {
 
     private fun checkAndCollide(wall: Wall, circle: Circle) {
         val wallLine = StraightLine(wall.from, wall.from + wall.size)
-        val intersections = findIntersections(wallLine, circle)
-        if (!intersections.isEmpty() && circle.speed.dot(wall.inside) < 0) {
-            val currentSpeed = circle.speed.asCartesian()
-            if (wallLine.isVertical) {
-                circle.speed = Cartesian(-currentSpeed.x, currentSpeed.y)
-            } else {
-                circle.speed = Cartesian(currentSpeed.x, -currentSpeed.y)
-            }
-        }
+        val collision = findCollision(wallLine, circle)
+
+        collision.points.forEach { applyCollisionResponse(wall, circle, collision.normal, it) }
     }
 
     private fun checkAndCollide(wall: Wall, rect: Rect) {
         val wallLine = StraightLine(wall.from, wall.from + wall.size)
-        if (!rect.lines().flatMap { findIntersections(wallLine, it) }.isEmpty()
-                && rect.speed.dot(wall.inside) < 0) {
-            val currentSpeed = rect.speed.asCartesian()
-            if (wallLine.isVertical) {
-                rect.speed = Cartesian(-currentSpeed.x, currentSpeed.y)
-            } else {
-                rect.speed = Cartesian(currentSpeed.x, -currentSpeed.y)
-            }
-        }
+        val collision = Collision(rect.lines().flatMap { findIntersections(wallLine, it) }, wall.inside)
+
+        collision.points.forEach { applyCollisionResponse(wall, rect, collision.normal, it) }
     }
 
     private fun checkAndCollide(first: Circle, second: Circle) {
         val relDistance = (second.center - first.center)
-        val relSpeed = second.speed - first.speed
         val penetration = first.radius + second.radius - relDistance.module()
-        if (penetration > 0.0 && relDistance.dot(relSpeed) < 0) {
-            applyCollisionResponse(relSpeed, first, second)
-        }
+        val collision =
+                if (penetration > 0.0) Collision(listOf(first.center / 2.0 + second.center / 2.0), relDistance)
+                else emptyCollision
+
+        collision.points.forEach { applyCollisionResponse(first, second, collision.normal, it) }
     }
 
-    private fun applyCollisionResponse(relSpeed: Vector, first: Movable, second: Movable) {
-        var relDistance = (second.center - first.center)
-        relDistance /= relDistance.module()
-        val J = -relSpeed.dot(relDistance) * (1 + e) / (relDistance.dot(relDistance) * (1 / first.mass + 1 / second.mass))
+    private fun applyCollisionResponse(wall: Wall, second: Movable, normal: Vector, point: Vector) {
+        val relSpeed = second.speedAt(point)
+        if (relSpeed.dot(wall.inside) > 0) return
 
-        first.speed -= relDistance * J / first.mass
-        second.speed += relDistance * J / second.mass
+        val rBPn = (second.center - point).normal()
+        val J = -relSpeed.dot(normal) * (1 + e) / // m**2/s
+                ((normal.dot(normal) * (1 / second.mass)) // m**2 / kg
+                        + (rBPn.dot(normal)).sqr() / second.inertia)
+
+        second.speed += normal * J / second.mass
+        second.angularSpeed += rBPn.dot(normal * J) / second.inertia
+    }
+
+    private fun applyCollisionResponse(first: Movable, second: Movable, normal: Vector, point: Vector) {
+        val relSpeed = second.speedAt(point) - first.speedAt(point)
+        if (relSpeed.dot(second.center - first.center) > 0.0) return
+
+        val rAPn = (first.center - point).normal()
+        val rBPn = (second.center - point).normal()
+        val J = -relSpeed.dot(normal) * (1 + e) / // m**2/s
+                ((normal.dot(normal) * (1 / first.mass + 1 / second.mass)) // m**2 / kg
+                        + (rAPn.dot(normal)).sqr() / first.inertia
+                        + (rBPn.dot(normal)).sqr() / second.inertia)
+
+        first.speed -= normal * J / first.mass
+        first.angularSpeed += rAPn.dot(normal * J) / first.inertia
+        second.speed += normal * J / second.mass
+        second.angularSpeed += rBPn.dot(normal * J) / second.inertia
     }
 
     private fun checkAndCollide(circle: Circle, rect: Rect) {
@@ -160,7 +171,7 @@ object Physics {
         }
     }
 
-    private fun findIntersections(first: StraightLine, second: Circle): List<Intersection> {
+    private fun findCollision(first: StraightLine, second: Circle): Collision {
         // moving coordinates center to circle center to simplify
         val movedLine = StraightLine(first.from - second.center, first.to - second.center)
         var points = emptyList<Vector>()
@@ -171,7 +182,7 @@ object Physics {
                 points = listOf(
                         Cartesian(movedLine.from.x, y1),
                         Cartesian(movedLine.from.x, y2))
-                if (abs(y1-y2) < Vector.PRECISION) points = points.take(1)
+                if (abs(y1 - y2) < Vector.PRECISION) points = points.take(1)
 
             }
         } else {
@@ -183,16 +194,16 @@ object Physics {
                     .map { x -> Cartesian(x, movedLine.yFunction(x)) }
         }
 
-        return points
+        return Collision(points
                 .map { it + second.center }
                 .filter { first.contains(it) && second.contains(it) }
-                .sortedWith ( compareBy({ it.asCartesian().x }, { it.asCartesian().y }) )
-                .map { Intersection(it, orthogonalToLineInDirectionTo(first, second, it)) }
+                .sortedWith(compareBy({ it.asCartesian().x }, { it.asCartesian().y })),
+                orthogonalToLineInDirectionTo(first, second))
     }
 
-    private fun orthogonalToLineInDirectionTo(line: StraightLine, directTo: Circle, point: Vector): Vector {
+    private fun orthogonalToLineInDirectionTo(line: StraightLine, directTo: Circle): Vector {
         val orthogonal = Polar(1.0, line.direction + PI / 2)
-        val direction = directTo.center - point
+        val direction = directTo.center - line.from
         return if (orthogonal.dot(direction) > Vector.PRECISION) orthogonal else -orthogonal
     }
 
@@ -215,15 +226,19 @@ object Physics {
 
 private fun Double.sqr(): Double = this * this
 
-data class Intersection(val point: Vector,
-                        /**
-                         * a vector from first to second body, along which a rebound force must be applied
-                         */
-                        val rebounde: Vector)
+data class Collision(val points: List<Vector>,
+                     /**
+                      * a vector from first to second body, along which a rebound force must be applied.
+                      * Can be of any length, since its length will cancel itself during calculations
+                      */
+                     val normal: Vector)
 
-data class Invariants(val momentumX: Double, val momentumY: Double, val energy: Double) {
+val emptyCollision = Collision(emptyList(), Polar.ZERO)
+
+data class Invariants(val momentumX: Double, val momentumY: Double, val energy: Double, val angularMomentum: Double) {
     operator fun plus(other: Invariants): Invariants {
-        return Invariants(momentumX + other.momentumX, momentumY + other.momentumY, energy + other.energy)
+        return Invariants(momentumX + other.momentumX, momentumY + other.momentumY,
+                energy + other.energy, angularMomentum + other.angularMomentum)
     }
 
 

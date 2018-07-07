@@ -3,17 +3,34 @@ package bounces
 import org.apache.commons.math3.util.FastMath
 import org.apache.commons.math3.util.FastMath.PI
 
-interface Body
+interface Body {
+    val mass: Double
+    val inertia: Double
+    var speed: Vector
+    var angularSpeed: Double
+}
 
-data class Wall(var from: Cartesian, var size: Cartesian, val inside: Vector) : Body
+data class Wall(var from: Cartesian, var size: Cartesian, val inside: Vector) : Body {
+    override val mass = Double.POSITIVE_INFINITY
+    override val inertia = Double.POSITIVE_INFINITY
+    override var speed: Vector
+        get() = Cartesian.ZERO
+        set(_) {}
+    override var angularSpeed: Double
+        get() = 0.0
+        set(_) {}
+}
 
-sealed class Movable(open var center: Cartesian, open var speed: Vector,
-                     open var turn: Polar, open var angularSpeed: Double) : Body {
-    abstract val mass: Double
-    abstract val inertia: Double
+sealed class Movable(open var center: Cartesian, override var speed: Vector,
+                     open var turn: Polar, override var angularSpeed: Double) : Body {
     open fun move(time: Double) {
         center += speed * time
-        turn.rotate(angularSpeed * time)
+        turn = turn.rotate(angularSpeed * time)
+    }
+
+    fun speedAt(point: Vector) : Vector {
+        val relativeVector = center - point
+        return speed + relativeVector.normal() * angularSpeed
     }
 }
 
@@ -23,10 +40,10 @@ data class Circle(val radius: Double, override var center: Cartesian, override v
     override val mass = 4 * PI * radius * radius
     override val inertia = mass * radius * radius / 2
 
-    val innerY1Function : (Double) -> Double = { x -> FastMath.sqrt(radius * radius - x * x) }
-    val innerY2Function : (Double) -> Double = { x -> -FastMath.sqrt(radius * radius - x * x) }
+    val innerY1Function: (Double) -> Double = { x -> FastMath.sqrt(radius * radius - x * x) }
+    val innerY2Function: (Double) -> Double = { x -> -FastMath.sqrt(radius * radius - x * x) }
     fun contains(point: Vector): Boolean {
-        return point.asCartesian().x in center.x- FastMath.abs(radius).. center.x+ FastMath.abs(radius)
+        return point.asCartesian().x in center.x - FastMath.abs(radius)..center.x + FastMath.abs(radius)
                 && (FastMath.abs(innerY1Function(point.asCartesian().x - center.x) - (point.asCartesian().y - center.y)) <= Vector.PRECISION
                 || FastMath.abs(innerY2Function(point.asCartesian().x - center.x) - (point.asCartesian().y - center.y)) <= Vector.PRECISION)
     }
@@ -36,11 +53,11 @@ data class Rect(val size: Cartesian, override var center: Cartesian, override va
                 override var turn: Polar, override var angularSpeed: Double)
     : Movable(center, speed, turn, angularSpeed) {
     override val mass = size.x * size.y
-    override val inertia =  size.moduleSqr() * 4 / 3
-    lateinit var p1 : Cartesian
-    lateinit var p2 : Cartesian
-    lateinit var p3 : Cartesian
-    lateinit var p4 : Cartesian
+    override val inertia = mass / 12 * size.module()
+    lateinit var p1: Cartesian
+    lateinit var p2: Cartesian
+    lateinit var p3: Cartesian
+    lateinit var p4: Cartesian
 
     override fun move(time: Double) {
         super.move(time)

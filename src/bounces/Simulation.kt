@@ -75,10 +75,11 @@ class Board : JPanel(true) {
 
     private fun draw(g: Graphics2D) {
         g.drawString("FPS ${fpsValue.get()}", 10, 10)
-        val i = Physics.update(bodies, 0.1)
-        g.drawString("X ${reducePrecision(i.momentumX)}", 10, 20)
-        g.drawString("Y ${reducePrecision(i.momentumY)}", 10, 30)
-        g.drawString("E ${reducePrecision(i.energy)}", 10, 40)
+        val i = Physics.update(bodies, 1.0 * timeStep / 1000)
+        g.drawString("mX ${reducePrecision(i.momentumX)}", 10, 20)
+        g.drawString("mY ${reducePrecision(i.momentumY)}", 10, 30)
+        g.drawString("mA ${reducePrecision(i.angularMomentum)}", 10, 40)
+        g.drawString("E  ${reducePrecision(i.energy)}", 10, 50)
 
         bodies.forEach {
             when (it) {
@@ -153,7 +154,7 @@ class Board : JPanel(true) {
         bodies.addAll(listOf(topWall, leftWall, rightWall, bottomWall))
         val radius = 40.0
         var center = (topWall.from + bottomWall.from) / 2.0 + Cartesian(600.0, 0.0)
-        bodies.add(Circle(radius, center + Cartesian(300.0, 0.0), Polar(30.0, PI), Polar.ZERO, 0.0))
+        bodies.add(Circle(radius, center + Cartesian(300.0, 0.0), Polar(30.0, PI), Polar(1.0, .0), 1.0))
 
         var rowStart = center
         val rowShift = Cartesian(-2*radius * cos(PI/6) -1, -2*radius * sin(PI/6)-1)
@@ -161,7 +162,7 @@ class Board : JPanel(true) {
         for (row in 0..4) {
             center = rowStart
             for (ball in 0..row) {
-                bodies.add(Circle(radius, center, Polar.ZERO, Polar.ZERO, 0.0))
+                bodies.add(Circle(radius, center, Polar.ZERO, Polar(1.0, 0.0), 0.0))
                 center += nextShift
             }
             rowStart += rowShift
