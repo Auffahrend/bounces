@@ -75,7 +75,7 @@ class Board : JPanel(true) {
 
     private fun draw(g: Graphics2D) {
         g.drawString("FPS ${fpsValue.get()}", 10, 10)
-        val i = Physics.update(bodies, 1.0 * timeStep / 1000)
+        val i = Physics.update(bodies, 0.1)
         g.drawString("mX ${reducePrecision(i.momentumX)}", 10, 20)
         g.drawString("mY ${reducePrecision(i.momentumY)}", 10, 30)
         g.drawString("mA ${reducePrecision(i.angularMomentum)}", 10, 40)
@@ -129,7 +129,7 @@ class Board : JPanel(true) {
     }
 
     fun addCircle() {
-        bodies.add(Circle(5.0 + randomSize(), Cartesian(width / 2.0, height / 2.0),
+        bodies.add(Circle(randomSize() + 10, Cartesian(width / 2.0, height / 2.0),
                 randomSpeed(), Polar(1.0, 0.0), 1.0))
     }
 
@@ -143,9 +143,8 @@ class Board : JPanel(true) {
     }
 
     fun addRect() {
-        bodies.add(Rect(Cartesian(random.nextDouble() * width - maxSize, random.nextDouble() * height - maxSize),
-                Cartesian(maxSize / 2 + randomSize() / 2, maxSize / 2 + randomSize() / 2), randomSpeed(),
-                Polar(1.0, random.nextDouble() * PI), 0.0))
+        bodies.add(Rect(Cartesian(randomSize() + 10, randomSize() + 10), Cartesian(width / 2.0, height / 2.0),
+                randomSpeed(), Polar(1.0, random.nextDouble() * PI), 0.0))
     }
 
     fun billiard() {

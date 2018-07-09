@@ -67,24 +67,32 @@ object Physics {
         val wallLine = StraightLine(wall.from, wall.from + wall.size)
         val collision = findCollision(wallLine, circle)
 
-        collision.points.forEach { applyCollisionResponse(wall, circle, collision.normal, it) }
+        if (collision.point != null) applyCollisionResponse(wall, circle, collision.normal, collision.point)
     }
 
     private fun checkAndCollide(wall: Wall, rect: Rect) {
         val wallLine = StraightLine(wall.from, wall.from + wall.size)
-        val collision = Collision(rect.lines().flatMap { findIntersections(wallLine, it) }, wall.inside)
+        val collisionPoint = (rect.lines()
+                .map { findIntersection(wallLine, it) }
+                .filter { it != null } as List<Vector>)
+                .average()
 
-        collision.points.forEach { applyCollisionResponse(wall, rect, collision.normal, it) }
+        if (collisionPoint != null)  applyCollisionResponse(wall, rect, wall.inside, collisionPoint)
     }
 
-    private fun checkAndCollide(first: Circle, second: Circle) {
+private fun List<Vector>.average(): Vector? {
+    return if (this.isEmpty()) null else this.reduce(Vector::plus) / this.size.toDouble()
+
+}
+
+private fun checkAndCollide(first: Circle, second: Circle) {
         val relDistance = (second.center - first.center)
         val penetration = first.radius + second.radius - relDistance.module()
         val collision =
-                if (penetration > 0.0) Collision(listOf(first.center / 2.0 + second.center / 2.0), relDistance)
+                if (penetration > 0.0) Collision(first.center / 2.0 + second.center / 2.0, relDistance)
                 else emptyCollision
 
-        collision.points.forEach { applyCollisionResponse(first, second, collision.normal, it) }
+        if (collision.point != null) applyCollisionResponse(first, second, collision.normal, collision.point)
     }
 
     private fun applyCollisionResponse(wall: Wall, second: Movable, normal: Vector, point: Vector) {
@@ -125,12 +133,12 @@ object Physics {
 
     }
 
-    private fun findIntersections(first: StraightLine, second: StraightLine): List<Vector> {
+    private fun findIntersection(first: StraightLine, second: StraightLine): Vector? {
         return if (isSecondLineCrossesFirst(first, second) && isSecondLineCrossesFirst(second, first)) {
             listOf(getStraightsIntersectionPoint(first, second))
-                    .filter { first.contains(it) && second.contains(it) }
+                    .firstOrNull { first.contains(it) && second.contains(it) }
         } else {
-            emptyList()
+            null
         }
     }
 
@@ -197,7 +205,7 @@ object Physics {
         return Collision(points
                 .map { it + second.center }
                 .filter { first.contains(it) && second.contains(it) }
-                .sortedWith(compareBy({ it.asCartesian().x }, { it.asCartesian().y })),
+                .average(),
                 orthogonalToLineInDirectionTo(first, second))
     }
 
@@ -226,14 +234,14 @@ object Physics {
 
 private fun Double.sqr(): Double = this * this
 
-data class Collision(val points: List<Vector>,
+data class Collision(val point: Vector?,
                      /**
                       * a vector from first to second body, along which a rebound force must be applied.
                       * Can be of any length, since its length will cancel itself during calculations
                       */
                      val normal: Vector)
 
-val emptyCollision = Collision(emptyList(), Polar.ZERO)
+val emptyCollision = Collision(null, Polar.ZERO)
 
 data class Invariants(val momentumX: Double, val momentumY: Double, val energy: Double, val angularMomentum: Double) {
     operator fun plus(other: Invariants): Invariants {
