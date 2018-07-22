@@ -72,20 +72,19 @@ object Physics {
 
     private fun checkAndCollide(wall: Wall, rect: Rect) {
         val wallLine = StraightLine(wall.from, wall.from + wall.size)
-        val collisionPoint = (rect.lines()
-                .map { findIntersection(wallLine, it) }
+        val collisionPoint = (rect.edges()
+                .map { wallLine.findIntersection(it) }
                 .filter { it != null } as List<Vector>)
                 .average()
 
-        if (collisionPoint != null)  applyCollisionResponse(wall, rect, wall.inside, collisionPoint)
+        if (collisionPoint != null) applyCollisionResponse(wall, rect, wall.inside, collisionPoint)
     }
 
-private fun List<Vector>.average(): Vector? {
-    return if (this.isEmpty()) null else this.reduce(Vector::plus) / this.size.toDouble()
+    private fun List<Vector>.average(): Vector? {
+        return if (this.isEmpty()) null else this.reduce(Vector::plus) / this.size.toDouble()
+    }
 
-}
-
-private fun checkAndCollide(first: Circle, second: Circle) {
+    private fun checkAndCollide(first: Circle, second: Circle) {
         val relDistance = (second.center - first.center)
         val penetration = first.radius + second.radius - relDistance.module()
         val collision =
@@ -130,22 +129,20 @@ private fun checkAndCollide(first: Circle, second: Circle) {
     }
 
     private fun checkAndCollide(first: Rect, second: Rect) {
+        val collisionPoint = (first.edges()
+                .flatMap { line -> second.edges().map { line.findIntersection(it) } }
+                .filter { it != null } as List<Vector>)
+                .average()
+        if (collisionPoint != null) {
+            val firstClosesVertexDistance = first.vertices().map { (collisionPoint - it).module() }.min()!!
+            val secondClosesVertexDistance = second.vertices().map { (collisionPoint - it).module() }.min()!!
+            val edge = (if (firstClosesVertexDistance >= secondClosesVertexDistance) first else second)
+                    .edges().minBy { it.distanceTo(collisionPoint) }!!
+            var normal = (edge.to - edge.from).normal()
+            if (normal.dot(second.center - first.center) < 0.0) normal *= -1.0
 
-    }
-
-    private fun findIntersection(first: StraightLine, second: StraightLine): Vector? {
-        return if (isSecondLineCrossesFirst(first, second) && isSecondLineCrossesFirst(second, first)) {
-            listOf(getStraightsIntersectionPoint(first, second))
-                    .firstOrNull { first.contains(it) && second.contains(it) }
-        } else {
-            null
+            applyCollisionResponse(first, second, normal, collisionPoint)
         }
-    }
-
-    private fun isSecondLineCrossesFirst(first: StraightLine, second: StraightLine): Boolean {
-        val product1 = (first.to - first.from).cross(second.from - first.from)
-        val product2 = (first.to - first.from).cross(second.to - first.from)
-        return product1 * product2 < 0
     }
 
     fun linear(line: StraightLine) = linear(line.from.x, line.from.y, line.to.x, line.to.y)
@@ -166,17 +163,6 @@ private fun checkAndCollide(first: Circle, second: Circle) {
         val k = (y2 - y1) / (x2 - x1)
         val y0 = y1 - x1 * k
         return { x -> k * x + y0 }
-    }
-
-    private fun getStraightsIntersectionPoint(first: StraightLine, second: StraightLine): Vector {
-        return when {
-            first.isVertical -> Cartesian(first.from.x, second.yFunction(first.from.x))
-            second.isVertical -> Cartesian(second.from.x, first.yFunction(second.from.x))
-            else -> {
-                val x = (second.yFunction(0.0) - first.yFunction(0.0)) / (FastMath.tan(first.direction) - FastMath.tan(second.direction))
-                Cartesian(x, first.yFunction(x))
-            }
-        }
     }
 
     private fun findCollision(first: StraightLine, second: Circle): Collision {

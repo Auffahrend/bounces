@@ -69,5 +69,6 @@ data class Rect(val size: Cartesian, override var center: Cartesian, override va
         p4 = (center + halfHeight - halfWidth).asCartesian()
     }
 
-    fun lines(): List<StraightLine> = listOf(StraightLine(p1, p2), StraightLine(p2, p3), StraightLine(p3, p4), StraightLine(p4, p1))
+    fun edges(): List<StraightLine> = listOf(StraightLine(p1, p2), StraightLine(p2, p3), StraightLine(p3, p4), StraightLine(p4, p1))
+    fun vertices(): List<Vector> = listOf(p1, p2, p3, p4)
 }

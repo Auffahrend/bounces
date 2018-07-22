@@ -75,7 +75,7 @@ class Board : JPanel(true) {
 
     private fun draw(g: Graphics2D) {
         g.drawString("FPS ${fpsValue.get()}", 10, 10)
-        val i = Physics.update(bodies, 0.1)
+        val i = Physics.update(bodies, timeStep / 1000.0)
         g.drawString("mX ${reducePrecision(i.momentumX)}", 10, 20)
         g.drawString("mY ${reducePrecision(i.momentumY)}", 10, 30)
         g.drawString("mA ${reducePrecision(i.angularMomentum)}", 10, 40)
@@ -130,12 +130,14 @@ class Board : JPanel(true) {
 
     fun addCircle() {
         bodies.add(Circle(randomSize() + 10, Cartesian(width / 2.0, height / 2.0),
-                randomSpeed(), Polar(1.0, 0.0), 1.0))
+                randomSpeed(), Polar(1.0, 0.0), randomAngularSpeed()))
     }
 
     private fun randomSize() = random.nextDouble() * maxSize
 
-    private fun randomSpeed() = Cartesian(randomSize() - maxSize / 2, randomSize() - maxSize / 2)
+    private fun randomSpeed() = Cartesian(randomSize() - maxSize / 2, randomSize() - maxSize / 2) * 2.0
+
+    private fun randomAngularSpeed() = (random.nextDouble() * 2 - 1) * 2
 
     fun removeBody() {
         val body = bodies.last()
@@ -144,11 +146,10 @@ class Board : JPanel(true) {
 
     fun addRect() {
         bodies.add(Rect(Cartesian(randomSize() + 10, randomSize() + 10), Cartesian(width / 2.0, height / 2.0),
-                randomSpeed(), Polar(1.0, random.nextDouble() * PI), 0.0))
+                randomSpeed(), Polar(1.0, random.nextDouble() * PI), randomAngularSpeed()))
     }
 
     fun billiard() {
-
         bodies.clear()
         bodies.addAll(listOf(topWall, leftWall, rightWall, bottomWall))
         val radius = 40.0
@@ -156,7 +157,7 @@ class Board : JPanel(true) {
         bodies.add(Circle(radius, center + Cartesian(300.0, 0.0), Polar(30.0, PI), Polar(1.0, .0), 1.0))
 
         var rowStart = center
-        val rowShift = Cartesian(-2*radius * cos(PI/6) -1, -2*radius * sin(PI/6)-1)
+        val rowShift = Cartesian(-2 * radius * cos(PI / 6) - 1, -2 * radius * sin(PI / 6) - 1)
         val nextShift = Cartesian(0.0, 2 * radius + 2)
         for (row in 0..4) {
             center = rowStart
@@ -167,6 +168,14 @@ class Board : JPanel(true) {
             rowStart += rowShift
         }
     }
+
+    fun squareBilliard() {
+        bodies.clear()
+        bodies.addAll(listOf(topWall, leftWall, rightWall, bottomWall))
+        val size = 60.0
+        bodies.add(Rect(Cartesian(size, size), Cartesian(100.0, 100.0), Cartesian.ZERO, Polar(1.0, 0.0), 0.0))
+        bodies.add(Rect(Cartesian(size, size), Cartesian(200.0, 120.0), Cartesian(-50.0, 0.0), Polar(1.0, 0.0), 0.0))
+    }
 }
 
 class BoardKeysListener(private val b: Board) : KeyListener {
@@ -176,6 +185,7 @@ class BoardKeysListener(private val b: Board) : KeyListener {
             '-' -> b.removeBody()
             'r' -> b.addRect()
             'b' -> b.billiard()
+            's' -> b.squareBilliard()
         }
     }
 
