@@ -1,6 +1,5 @@
 package bounces
 
-import org.apache.commons.math3.util.FastMath
 import org.apache.commons.math3.util.FastMath.*
 
 object Physics {
@@ -105,6 +104,8 @@ object Physics {
 
         second.speed += normal * J / second.mass
         second.angularSpeed += rBPn.dot(normal * J) / second.inertia
+        wall.collisions++
+        second.collisions++
     }
 
     private fun applyCollisionResponse(first: Movable, second: Movable, normal: Vector, point: Vector) {
@@ -120,8 +121,10 @@ object Physics {
 
         first.speed -= normal * J / first.mass
         first.angularSpeed += rAPn.dot(normal * J) / first.inertia
+        first.collisions++
         second.speed += normal * J / second.mass
         second.angularSpeed += rBPn.dot(normal * J) / second.inertia
+        second.collisions++
     }
 
     private fun checkAndCollide(circle: Circle, rect: Rect) {

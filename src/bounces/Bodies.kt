@@ -8,9 +8,11 @@ interface Body {
     val inertia: Double
     var speed: Vector
     var angularSpeed: Double
+    var collisions: Int
 }
 
 data class Wall(var from: Cartesian, var size: Cartesian, val inside: Vector) : Body {
+    override var collisions: Int = 0
     override val mass = Double.POSITIVE_INFINITY
     override val inertia = Double.POSITIVE_INFINITY
     override var speed: Vector
@@ -22,7 +24,9 @@ data class Wall(var from: Cartesian, var size: Cartesian, val inside: Vector) : 
 }
 
 sealed class Movable(open var center: Cartesian, override var speed: Vector,
-                     open var turn: Polar, override var angularSpeed: Double) : Body {
+                     open var turn: Polar, override var angularSpeed: Double,
+                     override val mass: Double) : Body {
+    override var collisions: Int = 0
     open fun move(time: Double) {
         center += speed * time
         turn = turn.rotate(angularSpeed * time)
@@ -35,9 +39,8 @@ sealed class Movable(open var center: Cartesian, override var speed: Vector,
 }
 
 data class Circle(val radius: Double, override var center: Cartesian, override var speed: Vector,
-                  override var turn: Polar, override var angularSpeed: Double)
-    : Movable(center, speed, turn, angularSpeed) {
-    override val mass = 4 * PI * radius * radius
+                  override var turn: Polar, override var angularSpeed: Double, override val mass: Double)
+    : Movable(center, speed, turn, angularSpeed, mass) {
     override val inertia = mass * radius * radius / 2
 
     val innerY1Function: (Double) -> Double = { x -> FastMath.sqrt(radius * radius - x * x) }
@@ -50,9 +53,8 @@ data class Circle(val radius: Double, override var center: Cartesian, override v
 }
 
 data class Rect(val size: Cartesian, override var center: Cartesian, override var speed: Vector,
-                override var turn: Polar, override var angularSpeed: Double)
-    : Movable(center, speed, turn, angularSpeed) {
-    override val mass = size.x * size.y
+                override var turn: Polar, override var angularSpeed: Double, override val mass: Double)
+    : Movable(center, speed, turn, angularSpeed, mass) {
     override val inertia = mass / 12 * size.module()
     lateinit var p1: Cartesian
     lateinit var p2: Cartesian
