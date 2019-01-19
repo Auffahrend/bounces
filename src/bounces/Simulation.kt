@@ -6,6 +6,7 @@ import java.awt.event.KeyEvent
 import java.awt.event.KeyListener
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import javax.swing.JFrame
 import javax.swing.JPanel
 
@@ -24,7 +25,6 @@ class Simulation {
 }
 
 private const val timeStep = 10L
-private const val maxSize = 100
 
 class Activity : JFrame() {init {
     title = "Bounces"
@@ -47,23 +47,29 @@ class Activity : JFrame() {init {
 class Board : JPanel(true) {
     private val fpsCounter = AtomicInteger()
     private var fpsValue = AtomicInteger()
-    private val bodies = mutableListOf<Body>()
-    private val topWall = Wall(Cartesian(.0, .0), Cartesian(.0, .0), Cartesian(0.0, 1.0))
-    private val leftWall = Wall(Cartesian(.0, .0), Cartesian(.0, .0), Cartesian(1.0, 0.0))
-    //    private val rightWall = Wall(Cartesian(.0, .0), Cartesian(.0, .0), Cartesian(-1.0, 0.0))
-    private val bottomWall = Wall(Cartesian(.0, .0), Cartesian(.0, .0), Cartesian(0.0, -1.0))
-    private val random = Random()
+    private val leftWall = Wall(Cartesian(.0, .0), Cartesian(.0, 1000.0), Cartesian(1.0, 0.0))
+    private val rect1 = Circle(20.0, Cartesian(200.0, 500.0), Cartesian(.0, .0), Polar(1.0, .0), .0, 1.0)
+    private val rect2 = Circle(50.0, Cartesian(500.0, 500.0), Cartesian(.0, .0), Polar(1.0, .0), .0, 1000000000000.0)
     private val wallColor = Color.red
     private val bodyColor = Color.black
 
+    private val invariants = AtomicReference(Invariants(0.0, 0.0, 0.0, 0.0))
+
     init {
+        piSetup()
         Timer(true)
                 .scheduleAtFixedRate(object : TimerTask() {
                     override fun run() {
                         fpsValue.set(fpsCounter.getAndSet(0))
                     }
                 }, 1000, 1000)
-        bodies.addAll(listOf(topWall, leftWall, bottomWall))
+        val physicsThread = Thread {
+            while (true) {
+                invariants.set(Physics.update(leftWall, rect1, rect2, 1E-7))
+            }
+        }
+        physicsThread.isDaemon = true
+        physicsThread.start()
     }
 
     override fun paintComponent(g: Graphics?) {
@@ -75,21 +81,16 @@ class Board : JPanel(true) {
 
     private fun draw(g: Graphics2D) {
         var line = 1;
-        g.drawString("FPS ${fpsValue.get()}", 10,  10 * line++)
-        g.drawString("Collisions ${bodies.map { it.collisions }.max()}", 10,  10 * line++)
-        val i = Physics.update(bodies, timeStep / 1000.0)
-        g.drawString("mX ${reducePrecision(i.momentumX)}", 10, 10 * line++)
-        g.drawString("mY ${reducePrecision(i.momentumY)}", 10, 10 * line++)
-        g.drawString("mA ${reducePrecision(i.angularMomentum)}", 10, 10 * line++)
-        g.drawString("E  ${reducePrecision(i.energy)}", 10, 10 * line++)
+        g.drawString("FPS ${fpsValue.get()}", 10, 10 * line++)
+        g.drawString("Collisions ${rect1.collisions}", 10, 10 * line++)
+        g.drawString("mX ${reducePrecision(invariants.get().momentumX)}", 10, 10 * line++)
+        g.drawString("mY ${reducePrecision(invariants.get().momentumY)}", 10, 10 * line++)
+        g.drawString("mA ${reducePrecision(invariants.get().angularMomentum)}", 10, 10 * line++)
+        g.drawString("E  ${reducePrecision(invariants.get().energy)}", 10, 10 * line++)
 
-        bodies.forEach {
-            when (it) {
-                is Circle -> draw(it, g)
-                is Rect -> draw(it, g)
-                is Wall -> draw(it, g)
-            }
-        }
+        draw(leftWall, g)
+        draw(rect1, g)
+        draw(rect2, g)
     }
 
     private fun reducePrecision(value: Double) = if (abs(value) < Vector.PRECISION) 0.0 else value
@@ -103,15 +104,6 @@ class Board : JPanel(true) {
         drawLine(g, circle.center, circle.center + circle.turn * circle.radius)
     }
 
-    private fun draw(rect: Rect, g: Graphics2D) {
-        g.color = bodyColor
-
-        drawLine(g, rect.p1, rect.p2)
-        drawLine(g, rect.p2, rect.p3)
-        drawLine(g, rect.p3, rect.p4)
-        drawLine(g, rect.p4, rect.p1)
-    }
-
     private fun drawLine(g: Graphics2D, from: Cartesian, to: Cartesian) {
         g.drawLine(from.x.toInt(), from.y.toInt(), to.x.toInt(), to.y.toInt())
     }
@@ -122,48 +114,25 @@ class Board : JPanel(true) {
     }
 
     private fun positionWalls() {
-        topWall.size = Cartesian(width.toDouble() - 1, .0)
         leftWall.size = Cartesian(.0, height.toDouble() - 1)
-//        rightWall.from = topWall.size
-//        rightWall.size = leftWall.size
-        bottomWall.from = leftWall.size
-        bottomWall.size = topWall.size
-    }
-
-    fun addCircle() {
-        bodies.add(Circle(randomSize() + 10, Cartesian(width / 2.0, height / 2.0),
-                randomSpeed(), Polar(1.0, 0.0), randomAngularSpeed(), 10.0))
-    }
-
-    private fun randomSize() = random.nextDouble() * maxSize
-
-    private fun randomSpeed() = Cartesian(randomSize() - maxSize / 2, randomSize() - maxSize / 2) * 2.0
-
-    private fun randomAngularSpeed() = (random.nextDouble() * 2 - 1) * 2
-
-    fun removeBody() {
-        val body = bodies.last()
-        if (body !is Wall) bodies.remove(body)
     }
 
     fun piSetup() {
-        bodies.clear()
-        bodies.addAll(listOf(topWall, leftWall, bottomWall))
-        val radius = 40.0
-        val center = (topWall.from + bottomWall.from) / 2.0 + Cartesian(600.0, 0.0)
         val lightMass = 1.0
         val heavyMass = lightMass * pow(10.0, 6)
-        bodies.add(Circle(radius * 2, center + Cartesian(300.0, 0.0), Polar(30.0, PI), Polar(1.0, .0), 0.0, heavyMass))
-        bodies.add(Circle(radius, center, Polar.ZERO, Polar(1.0, 0.0), 0.0, lightMass))
+        rect1.center = Cartesian(200.0, 200.0)
+        rect2.center = Cartesian(400.0, 200.0)
+        rect1.speed = Cartesian(0.0, 0.0)
+        rect2.speed = Cartesian(-10.0, 0.0)
+        rect1.collisions=0
+        rect2.collisions=0
+        leftWall.collisions=0
     }
-
 }
 
 class BoardKeysListener(private val b: Board) : KeyListener {
     override fun keyTyped(e: KeyEvent?) {
         when (e?.keyChar) {
-            'o' -> b.addCircle()
-            '-' -> b.removeBody()
             'p' -> b.piSetup()
         }
     }
